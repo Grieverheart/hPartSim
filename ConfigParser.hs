@@ -15,7 +15,7 @@ bsToFractional :: (Fractional a) => B.ByteString -> a
 bsToFractional = realToFrac . unsafePerformIO . flip B.useAsCString c_atof
 
 splitEvery _ [] = []
-splitEvery n list = first : (splitEvery n rest)
+splitEvery n list = first : splitEvery n rest
   where (first,rest) = splitAt n list
 
 readBox :: (Fractional a) => B.ByteString -> Box a

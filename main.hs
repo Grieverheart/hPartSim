@@ -1,3 +1,5 @@
+module Main (main) where
+
 import System.Environment
 import System.Directory
 import Control.Monad
@@ -7,30 +9,40 @@ import Defs
 import Vec3
 import Box
 
+toNormalCoords :: (Fractional a) => Vec3 a -> Box a -> Vec3 a
+toNormalCoords v (Box box) = vec3fromList $ fmap (dot v . vec3fromList) box
+
+distance :: (Ord a, Fractional a) => Box a -> Vec3 a -> Vec3 a -> a
+distance box x y = distVec `dot` distVec
+  where distVec = toNormalCoords (x .-. y) box 
 
 applyBC :: (Fractional a, Ord a) => Vec3 a -> Vec3 a
-applyBC vec = fmap applyBCsingle vec
+applyBC = fmap applyBCsingle
     where applyBCsingle x
             | x > 1.0   = x - 1.0
             | x < 0.0   = x + 1.0
             | otherwise = x
 
-checkCollision :: Box a -> (Particle a, Particle a) -> Bool
-checkCollision = undefined
+checkCollision :: (Ord a, Fractional a) => Box a -> (Particle a, Particle a) -> Bool
+checkCollision box (Particle x, Particle y) = distance box x y > 1.0
 
-moveParticle :: (Fractional a) => Vec3 a -> Int -> Configuration a -> Configuration a
-moveParticle dx nPart (Configuration box particles) = Configuration box (l ++ [particle'] ++ r)
+moveParticle :: (Fractional a, Ord a) => Vec3 a -> Int -> Configuration a -> Configuration a
+moveParticle dx nPart config@(Configuration box particles) =
+    if isCollision
+	    then config
+		else Configuration box (l ++ particle':r)
   where (l, particle:r) = splitAt nPart particles
-        particle'       = Particle $ position particle .+. dx
+        particle'       = Particle $ applyBC $ position particle .+. dx
+        isCollision     = all (checkCollision box) [(particle', p) | p <- l ++ r]
 
-changeVolume :: (Fractional a) => a -> Configuration a -> Configuration a
+changeVolume :: (Fractional a, Ord a) => a -> Configuration a -> Configuration a
 changeVolume dv config@(Configuration box ps) =
     if isCollision
         then config
         else Configuration box' ps
   where v                   = boxVolume box
         box'                = scaleBox ((v+dv)/v) box
-        isCollision         = and $ map (checkCollision box') (combinations ps)
+        isCollision         = all (checkCollision box') (combinations ps)
         combinations []     = []
         combinations (x:xs) = [(x, y) | y <- xs] ++ combinations xs
 
