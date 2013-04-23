@@ -5,17 +5,16 @@ module Vec3
     ,dot
     ,vec3fromList
     ) where
-
-import Data.Functor
 	
-data Vec3 a = Vec3 a a a deriving(Eq)
+data Vec3 a = Vec3 !a !a !a deriving(Eq)
 instance (Show a) => Show (Vec3 a) where
     show (Vec3 x y z) = "{" ++ show x ++ ", " ++ show y ++ ", " ++ show z ++ "}"
 	
 instance Functor Vec3 where
 	fmap f (Vec3 x y z) = Vec3 (f x) (f y) (f z)
 
-vec3fromList [x, y, z] = Vec3 x y z
+vec3fromList :: (Num a) => [a] -> Vec3 a
+vec3fromList [!x, !y, !z] = Vec3 x y z
 vec3fromList _         = Vec3 0 0 0
 
 (.+.) :: (Num a) => Vec3 a -> Vec3 a -> Vec3 a
