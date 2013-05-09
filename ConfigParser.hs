@@ -11,7 +11,7 @@ import Foreign.C.String
 import System.IO.Unsafe
 
 changeCoords :: (Floating a) => Box a -> Vec3 a -> Vec3 a
-changeCoords box v = vec3fromList $ fmap (dot v . vec3fromList) box
+changeCoords box v = vec3fromList box .*. v
 
 foreign import ccall unsafe "stdlib.h atof" c_atof :: CString -> IO CDouble
 bsToFloating :: (Floating a) => B.ByteString -> a
@@ -22,8 +22,14 @@ splitEvery _ [] = []
 splitEvery n list = first : splitEvery n rest
   where (first, rest) = splitAt n list
 
+takeEvery :: Int -> [a] -> [a]
+takeEvery _ [] = []
+takeEvery n (x:xs) = case drop (n-1) xs of
+    [] -> [x]
+    ys ->  x : takeEvery n ys
+
 readBox :: (Floating a) => B.ByteString -> Box a
-readBox str = splitEvery 3 nums
+readBox str = takeEvery 4 nums
   where nums = map bsToFloating (B.words str)
 
 readParticle :: (Floating a) => Box a -> B.ByteString -> Particle a
