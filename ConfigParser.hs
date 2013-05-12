@@ -9,6 +9,7 @@ import Vec3
 import Foreign.C.Types
 import Foreign.C.String
 import System.IO.Unsafe
+import qualified Data.Vector as V (fromList)
 
 changeCoords :: (Floating a) => Box a -> Vec3 a -> Vec3 a
 changeCoords box v = vec3fromList box .*. v
@@ -42,6 +43,6 @@ readNParticles str = case B.readInt str of
     _           -> error "Couldn't read file"
 
 loadConfig :: (Floating a) => [B.ByteString] -> (Int, Configuration a)
-loadConfig ls = (readNParticles nline, Configuration box (map (readParticle $ invertBox box) body))
+loadConfig ls = (readNParticles nline, Configuration box (V.fromList $ map (readParticle $ invertBox box) body))
   where ([nline, bline], body) = splitAt 2 ls
         box = readBox bline
