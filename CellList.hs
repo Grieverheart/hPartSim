@@ -8,7 +8,7 @@ module CellList
     ) where
 
 import qualified Data.Vector as V
-import Data.Vector.Mutable
+import Data.Vector.Mutable (write)
 import Vec3 (Vec3, vec3toList)
 
 type Cell      = [Int] -- A cell contains a list of particle indices
@@ -21,10 +21,12 @@ cellIndex :: (RealFrac a) => [Int] -> Vec3 a -> CellIndex
 cellIndex nCells !pos = zipWith ((truncate .) . (*)) posL (map fromIntegral nCells)
   where posL = vec3toList pos
 
+  -- Get the Cell at the CellIndex
 getCell :: CellList -> CellIndex -> Cell
 getCell (CellList [ni, nj, nk] cll) [i, j, k] = cll V.! idx
   where !idx = nk * nj * i + nj * j + k
 
+-- Returns the CellIndex's of all nearest neighbours at the CellIndex
 cellNeighbours :: CellList -> CellIndex -> [CellIndex]
 cellNeighbours (CellList !nCells _) cell = do
     i <- [-1..1]
@@ -40,11 +42,13 @@ neighbours cll !ci = concatMap (getCell cll) (cellNeighbours cll ci)
 modifyVectorElement ::  Int -> a -> V.Vector a -> V.Vector a
 modifyVectorElement !i !x !v = V.modify (\v' -> write v' i x) v
 
+-- Insert element in the Cell of the given CellIndex
 cllInsertAt :: CellList -> CellIndex -> Int -> CellList
 cllInsertAt (CellList nCells@[ni, nj, nk] cll) [i, j, k] x = CellList nCells (modifyVectorElement idx (x : cell) cll)
   where !idx  = nk * nj * i + nj * j + k
         !cell = cll V.! idx
 
+-- Remove element from the Cell of the given CellIndex
 cllRemoveAt :: CellList -> CellIndex -> Int -> CellList
 cllRemoveAt (CellList nCells@[ni, nj, nk] cll) [i, j, k] x = CellList nCells (modifyVectorElement idx (filter (/=x) cell) cll)
   where !idx  = nk * nj * i + nj * j + k
