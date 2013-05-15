@@ -5,51 +5,56 @@ module CellList
 	,cllInsertAt
     ,cllRemoveAt
 	,modifyVectorElement
+    ,emptyCellVector
     ) where
 
-import qualified Data.Vector as V
-import Data.Vector.Mutable (write)
-import Vec3 (Vec3, vec3toList)
+import Data.Vector         (Vector, (!), unsafeThaw, unsafeFreeze, )
+import Data.Vector.Mutable (write, replicate)
+import Vec3                (Vec3(..), (.*.), (.+.), liftF2)
+import Control.Monad.ST    (runST)
+import Prelude hiding      (replicate)
 
 type Cell      = [Int] -- A cell contains a list of particle indices
-type CellIndex = [Int] -- The index of a cell [i, j, k]
+type CellIndex = Vec3 Int -- The index of a cell [i, j, k]
 
-data CellList = CellList{_nCells :: [Int], _cells :: V.Vector Cell} deriving(Show)
+data CellList = CellList{_nCells :: Vec3 Int, _cells :: Vector Cell} deriving (Show)
+
+emptyCellVector :: Int -> Vector Cell
+emptyCellVector vsize = runST $ replicate vsize [] >>= unsafeFreeze
 
 -- Returns the cell index based on a position and the cell list shape (ncells)
-cellIndex :: (RealFrac a) => [Int] -> Vec3 a -> CellIndex
-cellIndex nCells !pos = zipWith ((truncate .) . (*)) posL (map fromIntegral nCells)
-  where posL = vec3toList pos
+cellIndex :: (RealFrac a) => Vec3 Int -> Vec3 a -> CellIndex
+cellIndex nCells !pos = fmap truncate $! pos .*. vNCells
+  where vNCells = fmap fromIntegral nCells
 
   -- Get the Cell at the CellIndex
 getCell :: CellList -> CellIndex -> Cell
-getCell (CellList [ni, nj, nk] cll) [i, j, k] = cll V.! idx
+getCell (CellList (Vec3 ni nj nk) cll) (Vec3 i j k) = cll ! idx
   where !idx = nk * nj * i + nj * j + k
 
 -- Returns the CellIndex's of all nearest neighbours at the CellIndex
 cellNeighbours :: CellList -> CellIndex -> [CellIndex]
-cellNeighbours (CellList !nCells _) cell = do
-    i <- [-1..1]
-    j <- [-1..1]
-    k <- [-1..1]
-    let temp = zipWith3 (((+).).(+)) nCells cell [i, j, k]
-    return $! zipWith mod temp nCells
+cellNeighbours (CellList ncells _) ci = do
+    ii <- neighbourOffsets
+    return $! (ii .+. ncells .+. ci) `fmod` ncells
+  where neighbourOffsets = [Vec3 i j k | i <- [-1..1], j <- [-1..1], k <- [-1..1]]
+        fmod             = liftF2 mod
 
 -- Returns a list of particle indices from the neighbouring cells
 neighbours :: CellList -> CellIndex -> [Int]
 neighbours cll !ci = concatMap (getCell cll) (cellNeighbours cll ci)
 
-modifyVectorElement ::  Int -> a -> V.Vector a -> V.Vector a
-modifyVectorElement !i !x !v = V.modify (\v' -> write v' i x) v
+modifyVectorElement ::  Int -> a -> Vector a -> Vector a
+modifyVectorElement !i !x !v = runST $ unsafeThaw v >>= (\mv -> write mv i x >> unsafeFreeze mv)
 
 -- Insert element in the Cell of the given CellIndex
 cllInsertAt :: CellList -> CellIndex -> Int -> CellList
-cllInsertAt (CellList nCells@[ni, nj, nk] cll) [i, j, k] x = CellList nCells (modifyVectorElement idx (x : cell) cll)
+cllInsertAt cell_list@(CellList (Vec3 ni nj nk) cll) (Vec3 i j k) x = cell_list{_cells = modifyVectorElement idx (x : cell) cll}
   where !idx  = nk * nj * i + nj * j + k
-        !cell = cll V.! idx
+        !cell = cll ! idx
 
 -- Remove element from the Cell of the given CellIndex
 cllRemoveAt :: CellList -> CellIndex -> Int -> CellList
-cllRemoveAt (CellList nCells@[ni, nj, nk] cll) [i, j, k] x = CellList nCells (modifyVectorElement idx (filter (/=x) cell) cll)
+cllRemoveAt cell_list@(CellList (Vec3 ni nj nk) cll) (Vec3 i j k) x = cell_list{_cells = modifyVectorElement idx (filter (/=x) cell) cll}
   where !idx  = nk * nj * i + nj * j + k
-        !cell = cll V.! idx
+        !cell = cll ! idx

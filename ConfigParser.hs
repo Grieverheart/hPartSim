@@ -1,22 +1,19 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 module ConfigParser (loadConfig) where
 
-import qualified Data.ByteString.Char8 as B
+import Data.ByteString.Char8      (ByteString, words, useAsCString, readInt)
 import Defs
-import Box (Box, invertBox)
-import Vec3
-
+import Box                        (Box, invertBox)
+import Vec3                       (Vec3, vec3fromList, (.*.))
+import Prelude hiding             (words)
 import Foreign.C.Types
 import Foreign.C.String
 import System.IO.Unsafe
 import qualified Data.Vector as V (fromList)
 
-changeCoords :: (Floating a) => Box a -> Vec3 a -> Vec3 a
-changeCoords box v = vec3fromList box .*. v
-
-foreign import ccall unsafe "stdlib.h atof" c_atof :: CString -> IO CDouble
-bsToFloating :: (Floating a) => B.ByteString -> a
-bsToFloating = realToFrac . unsafePerformIO . flip B.useAsCString c_atof
+foreign import ccall unsafe "stdlih atof" c_atof :: CString -> IO CDouble
+bsToFloating :: (Floating a) => ByteString -> a
+bsToFloating = realToFrac . unsafePerformIO . flip useAsCString c_atof
 
 splitEvery :: Int -> [a] -> [[a]]
 splitEvery _ [] = []
@@ -29,20 +26,20 @@ takeEvery n (x:xs) = case drop (n-1) xs of
     [] -> [x]
     ys ->  x : takeEvery n ys
 
-readBox :: (Floating a) => B.ByteString -> Box a
-readBox str = takeEvery 4 nums
-  where nums = map bsToFloating (B.words str)
+readBox :: (Floating a) => ByteString -> Box a
+readBox str = vec3fromList $ takeEvery 4 nums
+  where nums = map bsToFloating (words str)
 
-readParticle :: (Floating a) => Box a -> B.ByteString -> Particle a
-readParticle inversebox str = Particle $ changeCoords inversebox pos
-  where pos = vec3fromList . take 3 $ map bsToFloating (B.words str)
+readParticle :: (Floating a) => Box a -> ByteString -> Particle a
+readParticle inversebox str = Particle $ inversebox .*. pos
+  where pos = vec3fromList . take 3 $ map bsToFloating (words str)
   
-readNParticles :: B.ByteString -> Int
-readNParticles str = case B.readInt str of
+readNParticles :: ByteString -> Int
+readNParticles str = case readInt str of
     Just (x, _) -> x
     _           -> error "Couldn't read file"
 
-loadConfig :: (Floating a) => [B.ByteString] -> (Int, Configuration a)
+loadConfig :: (Floating a) => [ByteString] -> (Int, Configuration a)
 loadConfig ls = (readNParticles nline, Configuration box (V.fromList $ map (readParticle $ invertBox box) body))
   where ([nline, bline], body) = splitAt 2 ls
         box = readBox bline
