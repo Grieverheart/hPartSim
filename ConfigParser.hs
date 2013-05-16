@@ -6,9 +6,9 @@ import Defs
 import Box                        (Box, invertBox)
 import Vec3                       (Vec3, vec3fromList, (.*.))
 import Prelude hiding             (words)
-import Foreign.C.Types
-import Foreign.C.String
-import System.IO.Unsafe
+import Foreign.C.Types            (CDouble(..))
+import Foreign.C.String           (CString)
+import System.IO.Unsafe           (unsafePerformIO)
 import qualified Data.Vector as V (fromList)
 
 foreign import ccall unsafe "stdlih atof" c_atof :: CString -> IO CDouble

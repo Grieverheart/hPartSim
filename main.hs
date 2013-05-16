@@ -21,7 +21,7 @@ import           Box
 import           CellList
 
 type StateIO a = StateT (SimState a) IO
-type Eval a = ReaderT (Env a) (StateIO a)
+type Simulation a = ReaderT (Env a) (StateIO a)
 
 getMTRandomR :: (Floating a, MTRandom a) => MTGen -> (a, a) -> IO a
 getMTRandomR g (x, y) = ((+x) . (*(y - x))) <$> random g
@@ -68,22 +68,24 @@ moveParticle dx rId = do
     let particle        = particles V.! rId
         particle'       = Particle $ applyBC $ _position particle .+. dx
         cllIdx          = cellIndex (_nCells cll) (_position particle')
-        isCollision     = any (checkCollision box) [(particle', particles V.! pId) | pId <- neighbours cll cllIdx, pId /= rId]
+        combinations    = [(particle', particles V.! pId) | pId <- neighbours cll cllIdx, pId /= rId]
+        isCollision     = any (checkCollision box) combinations
     unless isCollision $ do --Accept move if there is no collision
         let cllIdxOld  = cellIndex (_nCells cll) (_position particle)
             cll'       = if cllIdx == cllIdxOld then cll else cllInsertAt (cllRemoveAt cll cllIdxOld rId) cllIdx rId
             particles' = modifyVectorElement rId particle' particles
         put $! SimState config{_particles = particles'} cll' variables{_nMov = _nMov variables + 1} g
 
-changeVolume :: (Floating a, RealFrac a) => a -> Eval a ()
+changeVolume :: (Floating a, RealFrac a) => a -> Simulation a ()
 changeVolume dv = do
     SimState config@(Configuration box particles) cll variables g <- get
     Env npart _                                                   <- ask
     let v                   = boxVolume box
         box'                = let scalef = ((v + dv) / v)**(1.0 / 3.0) in scaleBox scalef box
         isCollision         = any (checkCollision box') combinations
-        {-- A list of all the particles pairs that need to be checked for collision.
-        For each particle, the particles in the neighbouring cells are used. --}
+        -- A list of all the particles pairs that need to be checked for collision.
+        -- For each particle, the particles in the neighbouring cells are used.
+		-- NOTE: At the moment we're checking pairs twice (a, b), (b, a)
         combinations        = do
             pId  <- [0..(npart - 1)]
             let particle = particles V.! pId
@@ -105,13 +107,13 @@ configToString (Configuration b p) = boxToString b ++ particlesToString (V.toLis
         particlesToString         = concatMap (vec3ToString . changeCoords b . _position)
         vec3ToString (Vec3 x y z) = show x  ++ "\t" ++ show y ++ "\t" ++ show z ++ "\t0.0\t1.0\t0.0\t0.0\n"
 	
-printConfig :: (Floating a, Show a) => FilePath -> Eval a ()
+printConfig :: (Floating a, Show a) => FilePath -> Simulation a ()
 printConfig fp = do
     (SimState config _ _ _) <- get
     Env npart _             <- ask
     liftIO $ writeFile fp (show npart ++ "\n" ++ configToString config)
 
-runSimulation :: Int -> Eval Double ()
+runSimulation :: Int -> Simulation Double ()
 runSimulation steps = do
     Env npart ps <- ask
     forM_ [1..steps] (\i -> do

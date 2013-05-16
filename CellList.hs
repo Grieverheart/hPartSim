@@ -8,7 +8,7 @@ module CellList
     ,emptyCellVector
     ) where
 
-import Data.Vector         (Vector, (!), unsafeThaw, unsafeFreeze, )
+import Data.Vector         (Vector, (!), unsafeThaw, unsafeFreeze)
 import Data.Vector.Mutable (write, replicate)
 import Vec3                (Vec3(..), (.*.), (.+.), liftF2)
 import Control.Monad.ST    (runST)
@@ -24,6 +24,7 @@ emptyCellVector vsize = runST $ replicate vsize [] >>= unsafeFreeze
 
 -- Returns the cell index based on a position and the cell list shape (ncells)
 cellIndex :: (RealFrac a) => Vec3 Int -> Vec3 a -> CellIndex
+{-# INLINE cellIndex #-}
 cellIndex nCells !pos = fmap truncate $! pos .*. vNCells
   where vNCells = fmap fromIntegral nCells
 
@@ -36,15 +37,16 @@ getCell (CellList (Vec3 ni nj nk) cll) (Vec3 i j k) = cll ! idx
 cellNeighbours :: CellList -> CellIndex -> [CellIndex]
 cellNeighbours (CellList ncells _) ci = do
     ii <- neighbourOffsets
-    return $! (ii .+. ncells .+. ci) `fmod` ncells
+    return $! (ii .+. temp) `fmod` ncells
   where neighbourOffsets = [Vec3 i j k | i <- [-1..1], j <- [-1..1], k <- [-1..1]]
         fmod             = liftF2 mod
+        temp             = ncells .+. ci
 
 -- Returns a list of particle indices from the neighbouring cells
 neighbours :: CellList -> CellIndex -> [Int]
 neighbours cll !ci = concatMap (getCell cll) (cellNeighbours cll ci)
 
-modifyVectorElement ::  Int -> a -> Vector a -> Vector a
+modifyVectorElement :: Int -> a -> Vector a -> Vector a
 modifyVectorElement !i !x !v = runST $ unsafeThaw v >>= (\mv -> write mv i x >> unsafeFreeze mv)
 
 -- Insert element in the Cell of the given CellIndex
